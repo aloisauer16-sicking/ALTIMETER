@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#111122">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Höhenmesser">
+<title>Höhenmesser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-deep:    #0d1020;
+    --bg-card:    #111830;
+    --bg-ring:    #1e2a4a;
+    --border:     #2a3a6a;
+    --accent:     #5bc8f5;
+    --accent-dim: #7ab8d4;
+    --text-pri:   #c8e4f5;
+    --text-muted: #556070;
+    --green:      #4ecb8d;
+    --orange:     #f5a623;
+    --red:        #e24b4a;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg-deep);
+    color: var(--text-pri);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+
+  #app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  /* ── Status bar ── */
+  #statusbar {
+    background: #090b14;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: env(safe-area-inset-top, 8px) 16px 4px;
+    font-size: 12px;
+    color: #778;
+    flex-shrink: 0;
+  }
+  #statusbar svg { width: 16px; height: 16px; fill: currentColor; vertical-align: middle; }
+
+  /* ── Top bar ── */
+  #topbar {
+    background: #090b14;
+    padding: 8px 16px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 0.5px solid #ffffff18;
+    flex-shrink: 0;
+  }
+  #topbar h1 {
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #topbar h1 svg { width: 20px; height: 20px; fill: var(--accent); }
+
+  .gps-badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .gps-ok   { background: #0a3d2b; color: var(--green); }
+  .gps-wait { background: #3d2e0a; color: var(--orange); }
+  .gps-err  { background: #3d1010; color: var(--red); }
+
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.4s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+  /* ── Scroll area ── */
+  #scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 24px 16px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+
+  /* ── Altimeter ring ── */
+  #ring-wrap {
+    position: relative;
+    width: 220px; height: 220px;
+  }
+  #ring-svg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  #ring-inner {
+    position: absolute;
+    inset: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #1e2e50, #0d1526);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  #alt-value {
+    font-size: 56px;
+    font-weight: 300;
+    color: var(--accent);
+    letter-spacing: -2px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  #alt-unit  { font-size: 15px; color: var(--accent-dim); letter-spacing: 3px; margin-top: 2px; }
+  #alt-label { font-size: 10px; color: var(--text-muted); margin-top: 6px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  #trend-icon {
+    position: absolute;
+    top: 28px; right: 28px;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  /* ── Error box ── */
+  #error-box {
+    display: none;
+    width: 100%;
+    background: #3d1010;
+    border: 0.5px solid #7a2020;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 14px;
+    color: #f0a0a0;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ── Stats grid ── */
+  #stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .card-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .card-label svg { width: 13px; height: 13px; fill: #4a6a8a; flex-shrink: 0; }
+  .card-val {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-pri);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ── Sparkline ── */
+  #graph-card { width: 100%; }
+  #graph-card .card-label { margin-bottom: 10px; }
+  #sparkline { width: 100%; height: 70px; display: block; }
+
+  /* ── Buttons ── */
+  .btn {
+    width: 100%;
+    background: var(--bg-card);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--accent-dim);
+    font-size: 15px;
+    padding: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
+  }
+  .btn:active { background: #1a2a4a; }
+  .btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  /* ── Install banner ── */
+  #install-banner {
+    display: none;
+    width: 100%;
+    background: #0a2a1a;
+    border: 0.5px solid #1a5a3a;
+    border-radius: 12px;
+    padding: 12px 14px;
+    gap: 10px;
+    align-items: center;
+  }
+  #install-banner p { font-size: 13px; color: var(--green); flex: 1; line-height: 1.4; }
+  #install-btn {
+    background: #0f3d25;
+    border: 0.5px solid var(--green);
+    border-radius: 8px;
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div id="statusbar">
+    <span id="clock">--:--</span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <!-- wifi icon -->
+      <svg viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+      <!-- battery icon -->
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="16" height="10" rx="2" stroke="currentColor" fill="none" stroke-width="1.5"/><path d="M22 11v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="4" y="9" width="10" height="6" rx="1" fill="currentColor"/></svg>
+    </span>
+  </div>
+
+  <div id="topbar">
+    <h1>
+      <!-- mountain icon -->
+      <svg viewBox="0 0 24 24" style="fill:none;stroke:#5bc8f5;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round">
+        <path d="M8 21l4-12 4 12M3 21l5-5M21 21l-5-5M12 9l-2-4M12 9l2-4"/>
+      </svg>
+      Höhenmesser
+    </h1>
+    <div class="gps-badge gps-wait" id="gps-badge">
+      <div class="dot" id="gps-dot"></div>
+      <span id="gps-text">GPS…</span>
+    </div>
+  </div>
+
+  <div id="scroll">
+
+    <!-- Altimeter ring -->
+    <div id="ring-wrap">
+      <svg id="ring-svg" viewBox="0 0 220 220">
+        <defs>
+          <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3a5a9a"/>
+            <stop offset="100%" stop-color="#1a2a5a"/>
+          </linearGradient>
+        </defs>
+        <!-- Outer ring -->
+        <circle cx="110" cy="110" r="106" fill="none" stroke="#1a2a4a" stroke-width="8"/>
+        <!-- Tick marks -->
+        <g id="ticks"></g>
+        <!-- Progress arc placeholder -->
+        <circle id="progress-arc" cx="110" cy="110" r="106"
+          fill="none" stroke="#5bc8f5" stroke-width="4"
+          stroke-dasharray="0 666" stroke-dashoffset="-167"
+          stroke-linecap="round" transform="rotate(-90,110,110)"/>
+      </svg>
+      <div id="ring-inner">
+        <div id="alt-value">--</div>
+        <div id="alt-unit">M</div>
+        <div id="alt-label">abs. höhe</div>
+      </div>
+      <div id="trend-icon">⟶</div>
+    </div>
+
+    <!-- Error box -->
+    <div id="error-box" role="alert"></div>
+
+    <!-- Stats -->
+    <div id="stats">
+      <div class="card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M12 2v20M5 12l7-7 7 7"/></svg>
+          Min / Max
+        </div>
+        <div class="card-val" id="s-minmax">-- / --</div>
+        <div class="card-sub">Sitzung (m)</div>
+      </div>
+      <div class="card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+          Änderung
+        </div>
+        <div class="card-val" id="s-delta">±0 m</div>
+        <div class="card-sub">Sitzungsdelta</div>
+      </div>
+      <div class="card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          Genauigkeit
+        </div>
+        <div class="card-val" id="s-acc">-- m</div>
+        <div class="card-sub">GPS ±Fehler</div>
+      </div>
+      <div class="card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Aktualisiert
+        </div>
+        <div class="card-val" id="s-time">--:--:--</div>
+        <div class="card-sub">Uhrzeit</div>
+      </div>
+      <div class="card" style="grid-column:1/-1">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Koordinaten
+        </div>
+        <div class="card-val" id="s-coords" style="font-size:14px;letter-spacing:0">-- / --</div>
+        <div class="card-sub">Lat / Lon</div>
+      </div>
+    </div>
+
+    <!-- Sparkline -->
+    <div class="card" id="graph-card" style="width:100%">
+      <div class="card-label">
+        <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Höhenverlauf — letzte 60 Werte
+      </div>
+      <canvas id="sparkline"></canvas>
+    </div>
+
+    <!-- Recalibrate -->
+    <button class="btn" id="btn-recal" onclick="recalibrate()">
+      <svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.44-4.36"/></svg>
+      Neu kalibrieren / GPS neu starten
+    </button>
+
+    <!-- Install banner -->
+    <div id="install-banner">
+      <p>Als App auf dem Startbildschirm installieren</p>
+      <button id="install-btn" onclick="installApp()">Installieren</button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="card" style="width:100%;font-size:12px;color:var(--text-muted);line-height:1.7">
+      <strong style="color:var(--text-pri);display:block;margin-bottom:6px">Hinweise</strong>
+      • Standortfreigabe im Browser erlauben<br>
+      • Im Freien oder am Fenster für besseres GPS<br>
+      • GPS-Höhe: ±5–30 m Genauigkeit (WGS84)<br>
+      • Chrome → Menü → „Zum Startbildschirm hinzufügen"
+    </div>
+
+  </div><!-- /scroll -->
+</div><!-- /app -->
+
+<script>
+'use strict';
+(function(){
+
+const altEl    = document.getElementById('alt-value');
+const errBox   = document.getElementById('error-box');
+const gpsBadge = document.getElementById('gps-badge');
+const gpsDot   = document.getElementById('gps-dot');
+const gpsText  = document.getElementById('gps-text');
+const trendEl  = document.getElementById('trend-icon');
+const clockEl  = document.getElementById('clock');
+const arcEl    = document.getElementById('progress-arc');
+
+const sMinmax  = document.getElementById('s-minmax');
+const sDelta   = document.getElementById('s-delta');
+const sAcc     = document.getElementById('s-acc');
+const sTime    = document.getElementById('s-time');
+const sCoords  = document.getElementById('s-coords');
+
+const canvas   = document.getElementById('sparkline');
+const ctx      = canvas.getContext('2d');
+
+let history = [], altMin = Infinity, altMax = -Infinity;
+let watchId = null, firstAlt = null, lastAlt = null;
+let deferredPrompt = null;
+
+/* ── Clock ── */
+function tick() {
+  clockEl.textContent = new Date().toLocaleTimeString('de-AT', {hour:'2-digit',minute:'2-digit'});
+}
+tick(); setInterval(tick, 1000);
+
+/* ── GPS badge state ── */
+function setBadge(state) {
+  gpsBadge.className = 'gps-badge ' + state;
+  if (state === 'gps-ok')   { gpsText.textContent = 'GPS aktiv';  gpsDot.style.animationDuration = '1.4s'; }
+  if (state === 'gps-wait') { gpsText.textContent = 'GPS…';       gpsDot.style.animationDuration = '0.9s'; }
+  if (state === 'gps-err')  { gpsText.textContent = 'GPS Fehler'; gpsDot.style.animationDuration = '0.4s'; }
+}
+
+/* ── Progress arc ── */
+function setArc(alt) {
+  const lo = altMin === Infinity ? alt : altMin;
+  const hi = altMax === -Infinity ? alt : altMax;
+  const range = hi - lo || 1;
+  const frac = (alt - lo) / range;
+  const circ = 2 * Math.PI * 106;
+  arcEl.setAttribute('stroke-dasharray', (frac * circ).toFixed(1) + ' ' + circ.toFixed(1));
+}
+
+/* ── Sparkline ── */
+function drawSpark() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const w = canvas.parentElement.offsetWidth - 28;
+  const h = 70;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (history.length < 2) return;
+
+  const vals = history.map(p => p.alt);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const range = hi - lo || 1;
+  const pts = vals.map((v, i) => ({
+    x: (i / (vals.length - 1)) * w,
+    y: h - 4 - ((v - lo) / range) * (h - 10)
+  }));
+
+  /* Fill */
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length-1].x, h);
+  ctx.lineTo(pts[0].x, h);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(91,200,245,0.12)';
+  ctx.fill();
+
+  /* Line */
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = '#5bc8f5';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  /* Live dot */
+  const lp = pts[pts.length-1];
+  ctx.beginPath();
+  ctx.arc(lp.x, lp.y, 4.5, 0, Math.PI*2);
+  ctx.fillStyle = '#5bc8f5';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(lp.x, lp.y, 8, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(91,200,245,0.2)';
+  ctx.fill();
+}
+
+/* ── Format helpers ── */
+function fmtAlt(m) { return Math.round(m).toLocaleString('de-AT'); }
+function fmtCoord(v, pos, neg) {
+  const d = Math.abs(v);
+  const deg = Math.floor(d);
+  const min = ((d - deg) * 60).toFixed(3);
+  return deg + '° ' + min + '\'' + (v >= 0 ? pos : neg);
+}
+
+/* ── On position ── */
+function onPos(pos) {
+  errBox.style.display = 'none';
+  setBadge('gps-ok');
+  const raw = pos.coords.altitude;
+  if (raw === null || raw === undefined) {
+    showErr('GPS liefert keine Höhendaten.\nBitte im Freien versuchen.');
+    return;
+  }
+  const alt = raw;
+  if (firstAlt === null) firstAlt = alt;
+  lastAlt = alt;
+  history.push({ alt });
+  if (history.length > 60) history.shift();
+  if (alt < altMin) altMin = alt;
+  if (alt > altMax) altMax = alt;
+
+  altEl.textContent = fmtAlt(alt);
+  setArc(alt);
+
+  const acc = pos.coords.altitudeAccuracy;
+  sAcc.textContent = acc !== null ? '±' + Math.round(acc) + ' m' : 'n/a';
+  sTime.textContent = new Date().toLocaleTimeString('de-AT');
+  sMinmax.textContent = fmtAlt(altMin) + ' / ' + fmtAlt(altMax);
+
+  const delta = alt - firstAlt;
+  sDelta.textContent = (delta >= 0 ? '+' : '') + Math.round(delta) + ' m';
+  sDelta.style.color = delta > 0.5 ? '#4ecb8d' : delta < -0.5 ? '#f5a623' : '';
+
+  const lat = pos.coords.latitude, lon = pos.coords.longitude;
+  sCoords.textContent = fmtCoord(lat,'N','S') + ' / ' + fmtCoord(lon,'E','W');
+
+  /* Trend arrow */
+  if (history.length > 3) {
+    const prev = history[history.length-4].alt;
+    const d = alt - prev;
+    if (d > 0.5)       { trendEl.textContent = '↑'; trendEl.style.color = '#4ecb8d'; }
+    else if (d < -0.5) { trendEl.textContent = '↓'; trendEl.style.color = '#f5a623'; }
+    else               { trendEl.textContent = '→'; trendEl.style.color = '#556070'; }
+  }
+  drawSpark();
+}
+
+/* ── On error ── */
+function onErr(err) {
+  setBadge('gps-err');
+  let msg = 'GPS-Fehler.';
+  if (err.code === 1) msg = 'Standortzugriff verweigert.\nBitte Berechtigung in den Browser-Einstellungen erteilen.';
+  else if (err.code === 2) msg = 'Standort nicht verfügbar.\nBitte im Freien versuchen.';
+  else if (err.code === 3) msg = 'GPS-Zeitüberschreitung.\nBitte „Neu kalibrieren" tippen.';
+  showErr(msg);
+}
+
+function showErr(msg) {
+  altEl.textContent = '--';
+  errBox.style.display = 'block';
+  errBox.textContent = msg;
+}
+
+/* ── Start watch ── */
+function startWatch() {
+  if (!navigator.geolocation) { showErr('Geolocation wird nicht unterstützt.'); return; }
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  setBadge('gps-wait');
+  watchId = navigator.geolocation.watchPosition(onPos, onErr, {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: 20000
+  });
+}
+
+/* ── Recalibrate ── */
+window.recalibrate = function() {
+  altMin = Infinity; altMax = -Infinity;
+  firstAlt = null; lastAlt = null;
+  history = [];
+  altEl.textContent = '--';
+  sMinmax.textContent = '-- / --';
+  sDelta.textContent = '±0 m';
+  sAcc.textContent = '-- m';
+  sTime.textContent = '--:--:--';
+  sCoords.textContent = '-- / --';
+  trendEl.textContent = '→';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  arcEl.setAttribute('stroke-dasharray', '0 666');
+  startWatch();
+};
+
+/* ── PWA install ── */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').style.display = 'flex';
+});
+window.installApp = function() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    document.getElementById('install-banner').style.display = 'none';
+    deferredPrompt = null;
+  });
+};
+
+/* ── Init ── */
+startWatch();
+window.addEventListener('resize', drawSpark);
+
+})();
+</script>
+</body>
+</html>
